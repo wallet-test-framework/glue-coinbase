@@ -8,7 +8,7 @@ const options = {
 
     absWorkingDir: fileURLToPath(new URL(".", import.meta.url)),
 
-    entryPoints: ["src/index.ts", "src/cli.ts"],
+    entryPoints: ["src/index.ts", "src/cli.ts", "src/glue.ts"],
 
     bundle: false,
     outbase: "src",
