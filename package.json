@@ -53,7 +53,7 @@
     },
     "dependencies": {
         "@wallet-test-framework/glue": "^0.7.0",
-        "@wallet-test-framework/glue-ws": "file:../glue-ws",
+        "@wallet-test-framework/glue-ws": "^0.1.0",
         "meow": "^12.1.1",
         "selenium-webdriver": "^4.14.0"
     }

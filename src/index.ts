@@ -29,6 +29,13 @@ export async function main(args: string[]): Promise<void> {
         argv: args.slice(2),
         importMeta: import.meta,
         flags: {
+            extensionPath: {
+                type: "string",
+                isRequired: true,
+            },
+            browserVersion: {
+                type: "string",
+            },
             testUrl: {
                 type: "string",
                 default: "https://wallet-test-framework.herokuapp.com/",
@@ -36,7 +43,10 @@ export async function main(args: string[]): Promise<void> {
         },
     });
 
-    const implementation = new CoinbaseGlue();
+    const implementation = new CoinbaseGlue(
+        cli.flags.extensionPath,
+        cli.flags.browserVersion,
+    );
     const serveResult = serveGlue(implementation, { port: 0 });
 
     try {

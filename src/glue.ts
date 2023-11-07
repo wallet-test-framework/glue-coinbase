@@ -80,10 +80,16 @@ class CoinbaseDriver {
         this.glue = glue;
     }
 
-    public static async create(glue: CoinbaseGlue): Promise<CoinbaseDriver> {
+    public static async create(
+        glue: CoinbaseGlue,
+        extensionPath: string,
+        browserVersion: string | null | undefined,
+    ): Promise<CoinbaseDriver> {
         const chrome = new Chrome.Options();
-        chrome.setBrowserVersion("117.0.5938.149");
-        chrome.addExtensions("/home/sam/coinbase.crx");
+        if (typeof browserVersion === "string") {
+            chrome.setBrowserVersion(browserVersion);
+        }
+        chrome.addExtensions(extensionPath);
 
         const driver = await new Builder()
             .forBrowser("chrome")
@@ -276,13 +282,31 @@ class CoinbaseDriver {
 export class CoinbaseGlue extends Glue {
     private static async buildDriver(
         glue: CoinbaseGlue,
+        extensionPath: string,
+        browserVersion: string | null | undefined,
     ): Promise<CoinbaseDriver> {
-        const coinbase = await CoinbaseDriver.create(glue);
+        const coinbase = await CoinbaseDriver.create(
+            glue,
+            extensionPath,
+            browserVersion,
+        );
         await coinbase.setup();
         return coinbase;
     }
 
-    private readonly driver = CoinbaseGlue.buildDriver(this);
+    private readonly driver;
+
+    constructor(
+        extensionPath: string,
+        browserVersion: string | null | undefined,
+    ) {
+        super();
+        this.driver = CoinbaseGlue.buildDriver(
+            this,
+            extensionPath,
+            browserVersion,
+        );
+    }
 
     async launch(url: string): Promise<void> {
         const cb = await this.driver;
@@ -310,7 +334,7 @@ export class CoinbaseGlue extends Glue {
             await settingsLink.click();
 
             const networksMenu = await driver.findElement(
-                By.css("[data-testid='settings-networks-menu-cell-pressable']"),
+                By.css("[data-testid='network-setting-cell-pressable']"),
             );
             await driver.wait(until.elementIsVisible(networksMenu), 2000);
             await networksMenu.click();
