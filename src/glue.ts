@@ -1,3 +1,4 @@
+import { parseUnits } from "./units.js";
 import {
     ActivateChain,
     EventMap,
@@ -5,6 +6,7 @@ import {
     RequestAccounts,
     RequestAccountsEvent,
     SendTransaction,
+    SendTransactionEvent,
     SignMessage,
     SignTransaction,
     SwitchEthereumChain,
@@ -129,6 +131,39 @@ class CoinbaseDriver {
         );
     }
 
+    private async emitSendTransaction(
+        driver: WebDriver,
+        handle: string,
+    ): Promise<void> {
+        console.debug("emitting sendtransaction");
+        await this.unlockWithPassword(driver);
+
+        const addressDetails = await driver.findElement(
+            By.css("[data-testid='address-details']"),
+        );
+        const toAddress = await addressDetails.getText();
+        const signingAddress = await driver.findElement(
+            By.css("[data-testid='signing-address'] span"),
+        );
+        const fromAddress = await signingAddress.getText();
+        const undefinedDetails = await driver.findElement(
+            By.css("[data-testid='undefined-details']"),
+        );
+        const textCost = await undefinedDetails.getText();
+        const cost = /[0-9]+(.[0-9]+)?(?= ETH)/.exec(textCost)?.[0] || "";
+        const parsedCost = parseUnits(cost, 18);
+
+        this.glue.emit(
+            "sendtransaction",
+            new SendTransactionEvent(handle, {
+                from: fromAddress,
+                to: toAddress,
+                data: "",
+                value: parsedCost.toString(),
+            }),
+        );
+    }
+
     private async processNewWindow(
         driver: WebDriver,
         handle: string,
@@ -144,6 +179,13 @@ class CoinbaseDriver {
         switch (action) {
             case "requestEthereumAccounts":
                 await this.emitRequestAccounts(driver, handle);
+                break;
+            case "signEthereumTransaction":
+                // TODO: differentiate between sign/send
+                await this.emitSendTransaction(driver, handle);
+                break;
+            case "signEthereumMessage":
+                throw new Error("cb - emit not implemented");
                 break;
             default:
                 title = await driver.getTitle();
@@ -343,6 +385,7 @@ export class CoinbaseGlue extends Glue {
                 By.css("[data-testid='add-custom-network']"),
             );
             await driver.wait(until.elementIsVisible(addCustom), 2000);
+            await delay(1000);
             const windowsBefore = await driver.getAllWindowHandles();
             await addCustom.click();
 
@@ -426,10 +469,36 @@ export class CoinbaseGlue extends Glue {
         throw new Error("cb - signMessage not implemented");
     }
 
-    // TODO: Remove eslint comment after implementing.
-    // eslint-disable-next-line @typescript-eslint/require-await
-    override async sendTransaction(_action: SendTransaction): Promise<void> {
-        throw new Error("cb - sendTransaction not implemented");
+    override async sendTransaction(action: SendTransaction): Promise<void> {
+        const cb = await this.driver;
+        await cb.lock(async (driver) => {
+            const current = await driver.getWindowHandle();
+            try {
+                await driver.switchTo().window(action.id);
+                let testid: string;
+
+                switch (action.action) {
+                    case "approve":
+                        testid = "request-confirm-button";
+                        break;
+                    case "reject":
+                        testid = "request-cancel-button";
+                        break;
+                    default:
+                        throw new Error(
+                            `unsupported action ${action as string}`,
+                        );
+                }
+
+                const btn = await driver.findElement(
+                    By.css(`[data-testid='${testid}']:not([disabled])`),
+                );
+                await driver.wait(until.elementIsVisible(btn), 2000);
+                await btn.click();
+            } finally {
+                await driver.switchTo().window(current);
+            }
+        });
     }
 
     // TODO: Remove eslint comment after implementing.
