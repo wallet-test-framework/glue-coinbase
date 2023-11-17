@@ -8,6 +8,7 @@ import {
     SendTransaction,
     SendTransactionEvent,
     SignMessage,
+    SignMessageEvent,
     SignTransaction,
     SwitchEthereumChain,
 } from "@wallet-test-framework/glue";
@@ -164,6 +165,26 @@ class CoinbaseDriver {
         );
     }
 
+    private async emitSignMessage(
+        driver: WebDriver,
+        handle: string,
+    ): Promise<void> {
+        console.debug("emitting signmessage");
+        await this.unlockWithPassword(driver);
+
+        const messageContent = await driver.findElement(
+            By.css("[data-testid='message-content']"),
+        );
+        const message = await messageContent.getText();
+
+        this.glue.emit(
+            "signmessage",
+            new SignMessageEvent(handle, {
+                message: message,
+            }),
+        );
+    }
+
     private async processNewWindow(
         driver: WebDriver,
         handle: string,
@@ -185,7 +206,7 @@ class CoinbaseDriver {
                 await this.emitSendTransaction(driver, handle);
                 break;
             case "signEthereumMessage":
-                throw new Error("cb - emit not implemented");
+                await this.emitSignMessage(driver, handle);
                 break;
             default:
                 title = await driver.getTitle();
@@ -463,10 +484,36 @@ export class CoinbaseGlue extends Glue {
         });
     }
 
-    // TODO: Remove eslint comment after implementing.
-    // eslint-disable-next-line @typescript-eslint/require-await
-    override async signMessage(_action: SignMessage): Promise<void> {
-        throw new Error("cb - signMessage not implemented");
+    override async signMessage(action: SignMessage): Promise<void> {
+        const cb = await this.driver;
+        await cb.lock(async (driver) => {
+            const current = await driver.getWindowHandle();
+            try {
+                await driver.switchTo().window(action.id);
+                let testid: string;
+
+                switch (action.action) {
+                    case "approve":
+                        testid = "sign-message";
+                        break;
+                    case "reject":
+                        testid = "cancel-message";
+                        break;
+                    default:
+                        throw new Error(
+                            `unsupported action ${action as string}`,
+                        );
+                }
+
+                const btn = await driver.findElement(
+                    By.css(`[data-testid='${testid}']:not([disabled])`),
+                );
+                await driver.wait(until.elementIsVisible(btn), 2000);
+                await btn.click();
+            } finally {
+                await driver.switchTo().window(current);
+            }
+        });
     }
 
     override async sendTransaction(action: SendTransaction): Promise<void> {
