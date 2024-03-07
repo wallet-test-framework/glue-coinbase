@@ -1,8 +1,10 @@
+import { logger } from "./logger.js";
 import { parseUnits } from "./units.js";
 import {
     ActivateChain,
     EventMap,
     Glue,
+    Report,
     RequestAccounts,
     RequestAccountsEvent,
     SendTransaction,
@@ -38,24 +40,24 @@ class Lock<T> {
 
     public lock<R>(callback: (data: T) => Promise<R>): Promise<R> {
         if (this.locked) {
-            console.debug("Queuing");
+            logger.debug("Queuing");
             return new Promise<R>((res, rej) => {
                 this.queue.push(() => callback(this.data).then(res).catch(rej));
             });
         }
 
-        console.debug("Locking");
+        logger.debug("Locking");
         this.locked = true;
         return callback(this.data).finally(() => this.after());
     }
 
     private after() {
         if (0 === this.queue.length) {
-            console.debug("Unlocking");
+            logger.debug("Unlocking");
             this.locked = false;
         } else {
             const item = this.queue.shift();
-            console.debug("Running task", item);
+            logger.debug("Running task", item);
             if (typeof item === "undefined") {
                 throw new Error("lock queue empty");
             }
@@ -121,7 +123,7 @@ class CoinbaseDriver {
         driver: WebDriver,
         handle: string,
     ): Promise<void> {
-        console.debug("emitting requestaccounts");
+        logger.debug("emitting requestaccounts");
         await this.unlockWithPassword(driver);
 
         this.glue.emit(
@@ -136,7 +138,7 @@ class CoinbaseDriver {
         driver: WebDriver,
         handle: string,
     ): Promise<void> {
-        console.debug("emitting sendtransaction");
+        logger.debug("emitting sendtransaction");
         await this.unlockWithPassword(driver);
 
         const addressDetails = await driver.findElement(
@@ -169,7 +171,7 @@ class CoinbaseDriver {
         driver: WebDriver,
         handle: string,
     ): Promise<void> {
-        console.debug("emitting signmessage");
+        logger.debug("emitting signmessage");
         await this.unlockWithPassword(driver);
 
         const messageContent = await driver.findElement(
@@ -189,7 +191,7 @@ class CoinbaseDriver {
         driver: WebDriver,
         handle: string,
     ): Promise<void> {
-        console.debug("Processing window", handle);
+        logger.debug("Processing window", handle);
         await driver.switchTo().window(handle);
 
         const location = await driver.getCurrentUrl();
@@ -210,7 +212,7 @@ class CoinbaseDriver {
                 break;
             default:
                 title = await driver.getTitle();
-                console.warn(
+                logger.warn(
                     "unknown event from window",
                     title,
                     "@",
@@ -241,7 +243,7 @@ class CoinbaseDriver {
                         await this.processNewWindow(driver, one);
                     } catch (e) {
                         if (e instanceof NoSuchWindowError) {
-                            console.debug("Window", one, "disappeared");
+                            logger.debug("Window", one, "disappeared");
                             continue;
                         } else {
                             throw e;
@@ -267,7 +269,7 @@ class CoinbaseDriver {
             previous = next;
 
             if (created.length > 0) {
-                console.debug("Found windows", created);
+                logger.debug("Found windows", created);
                 this.newWindows.push(...created);
                 await this.processNewWindows();
             }
@@ -340,6 +342,13 @@ class CoinbaseDriver {
             await driver.wait(until.elementIsVisible(bell), 2000);
         });
     }
+
+    async stop(): Promise<void> {
+        this.running = false;
+        await this.driver.lock(async (driver) => {
+            await driver.quit();
+        });
+    }
 }
 
 export class CoinbaseGlue extends Glue {
@@ -358,6 +367,8 @@ export class CoinbaseGlue extends Glue {
     }
 
     private readonly driver;
+    public readonly reportReady: Promise<Report>;
+    private readonly resolveReport: (report: Report) => unknown;
 
     constructor(
         extensionPath: string,
@@ -369,6 +380,17 @@ export class CoinbaseGlue extends Glue {
             extensionPath,
             browserVersion,
         );
+
+        let resolveReport;
+        this.reportReady = new Promise((res) => {
+            resolveReport = res;
+        });
+
+        if (!resolveReport) {
+            throw new Error("Promise didn't assign resolve function");
+        }
+
+        this.resolveReport = resolveReport;
     }
 
     async launch(url: string): Promise<void> {
@@ -421,7 +443,7 @@ export class CoinbaseGlue extends Glue {
             if (!newWindow) {
                 throw new Error("custom testnet window disappeared");
             }
-            console.debug("Switching to custom network window", newWindow);
+            logger.debug("Switching to custom network window", newWindow);
             await driver.switchTo().window(newWindow);
             await cb.unlockWithPassword(driver);
 
@@ -560,6 +582,12 @@ export class CoinbaseGlue extends Glue {
         _action: SwitchEthereumChain,
     ): Promise<void> {
         throw new Error("cb - switchEthereumChain not implemented");
+    }
+
+    // eslint-disable-next-line @typescript-eslint/require-await
+    override async report(action: Report): Promise<void> {
+        await (await this.driver).stop();
+        this.resolveReport(action);
     }
 
     public emit<E extends keyof EventMap>(

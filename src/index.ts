@@ -1,4 +1,5 @@
 import { CoinbaseGlue } from "./glue.js";
+import { logger } from "./logger.js";
 import serveGlue, { ServeResult } from "@wallet-test-framework/glue-ws";
 import meow from "meow";
 import * as process from "node:process";
@@ -51,7 +52,13 @@ export async function main(args: string[]): Promise<void> {
 
     try {
         await serve(cli.flags.testUrl, implementation, serveResult);
-        await new Promise((r) => setTimeout(r, 600000)); // TODO
+        const report = await implementation.reportReady;
+
+        if (typeof report.value !== "string") {
+            throw new Error("unsupported report type");
+        }
+
+        process.stdout.write(report.value);
     } finally {
         await serveResult.close();
     }
@@ -59,7 +66,7 @@ export async function main(args: string[]): Promise<void> {
 
 export function mainSync(args: string[]): void {
     main(args).catch((e) => {
-        console.error(e);
+        logger.error(e);
         process.exit(1);
     });
 }
