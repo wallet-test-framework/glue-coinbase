@@ -38,23 +38,23 @@
     },
     "homepage": "https://wtf.allwallet.dev/",
     "devDependencies": {
-        "@jgoz/esbuild-plugin-typecheck": "^3.1.0",
-        "@trivago/prettier-plugin-sort-imports": "^4.2.0",
+        "@jgoz/esbuild-plugin-typecheck": "^3.1.1",
+        "@trivago/prettier-plugin-sort-imports": "^4.3.0",
         "@tsconfig/recommended": "^1.0.3",
-        "@types/node": "^20.6.1",
-        "@types/selenium-webdriver": "^4.1.19",
-        "@typescript-eslint/eslint-plugin": "6.8.0",
-        "@typescript-eslint/parser": "^6.8.0",
-        "esbuild": "0.19.5",
-        "eslint": "8.52.0",
-        "eslint-config-prettier": "^9.0.0",
-        "prettier": "3.0.3",
-        "typescript": "^5.2.2"
+        "@types/node": "^20.11.25",
+        "@types/selenium-webdriver": "^4.1.21",
+        "@typescript-eslint/eslint-plugin": "7.1.1",
+        "@typescript-eslint/parser": "^7.1.1",
+        "esbuild": "0.20.1",
+        "eslint": "8.57.0",
+        "eslint-config-prettier": "^9.1.0",
+        "prettier": "3.2.5",
+        "typescript": "^5.4.2"
     },
     "dependencies": {
         "@wallet-test-framework/glue": "^0.7.0",
         "@wallet-test-framework/glue-ws": "^0.1.0",
-        "meow": "^12.1.1",
-        "selenium-webdriver": "^4.14.0"
+        "meow": "^13.2.0",
+        "selenium-webdriver": "^4.18.1"
     }
 }
